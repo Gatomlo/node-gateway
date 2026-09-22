@@ -1,0 +1,13 @@
+node_modules/
+npm-debug.log*
+.env
+.env.local
+*.log
+
+# Jonctions locales vers les projets d'outils (voir README) - pas de contenu reel a versionner
+apps/*
+
+# Donnees runtime locales
+data/*.db
+data/*.db-shm
+data/*.db-wal

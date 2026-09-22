@@ -1,0 +1,17 @@
+{
+  "name": "node-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Point d'entree Node.js unique (contrainte d'hebergement) qui monte automatiquement chaque outil place dans apps/ sur une route portant le nom de son dossier.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "postinstall": "node scripts/install-apps.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
