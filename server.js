@@ -22,9 +22,34 @@
 process.on('uncaughtException', (err) => console.error('Erreur non interceptee (ignoree) :', err));
 process.on('unhandledRejection', (err) => console.error('Promesse rejetee non geree (ignoree) :', err));
 
-const express = require('express');
 const fs = require('fs');
 const path = require('path');
+
+// Si un "npm install" est encore en cours (verrou pose en "preinstall", retire en
+// "postinstall" — voir package.json et scripts/install-lock.js), on attend sa fin
+// avant de charger le moindre module. Sans ca, l'hebergement peut demarrer l'app
+// pendant que npm est encore en train d'ecrire des package.json dans node_modules
+// (ex. celui d'express), ce qui declenche des ERR_INVALID_PACKAGE_CONFIG aleatoires
+// au boot juste apres un deploiement.
+(function waitForInstallLock() {
+  const LOCK_PATH = path.join(__dirname, '.installing');
+  const MAX_WAIT_MS = 5 * 60 * 1000;
+  if (!fs.existsSync(LOCK_PATH)) return;
+  console.log('Installation en cours detectee (.installing), attente avant de demarrer...');
+  const deadline = Date.now() + MAX_WAIT_MS;
+  while (fs.existsSync(LOCK_PATH) && Date.now() < deadline) {
+    // Attente synchrone (aucune boucle d'evenements ne tourne encore a ce stade) mais
+    // non active : Atomics.wait bloque le thread sans consommer de CPU.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  }
+  if (fs.existsSync(LOCK_PATH)) {
+    console.warn('Verrou .installing toujours present apres 5 min (install plantee ?), demarrage quand meme.');
+  } else {
+    console.log('Installation terminee, demarrage.');
+  }
+})();
+
+const express = require('express');
 
 const PORT = process.env.PORT || 3000;
 const APPS_DIR = path.join(__dirname, 'apps');

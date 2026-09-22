@@ -3,6 +3,7 @@ npm-debug.log*
 .env
 .env.local
 *.log
+.installing
 
 # Jonctions locales vers les projets d'outils (voir README) - pas de contenu reel a versionner
 apps/*

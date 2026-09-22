@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "node scripts/install-apps.js"
+    "preinstall": "node scripts/install-lock.js start",
+    "postinstall": "node scripts/install-apps.js && node scripts/install-lock.js end"
   },
   "dependencies": {
     "express": "^4.19.2"
