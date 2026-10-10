@@ -14,13 +14,17 @@
 //   if (require.main === module) app.listen(PORT, () => ...);
 //   module.exports = app;
 
-// Filet de securite : un outil monte qui n'a pas ete adapte (ex. il appelle encore
-// son propre app.listen() au chargement au lieu d'exporter l'app) peut declencher une
-// erreur asynchrone (ex. EADDRINUSE si son PORT par defaut entre en conflit avec celui
-// de la passerelle) qui, sans ce filet, ferait planter TOUTE la passerelle — y compris
-// les outils correctement montes. On log et on continue plutot que de tout arreter.
-process.on('uncaughtException', (err) => console.error('Erreur non interceptee (ignoree) :', err));
-process.on('unhandledRejection', (err) => console.error('Promesse rejetee non geree (ignoree) :', err));
+// Une erreur non interceptee laisse le process dans un etat indetermine (requete sans
+// reponse, transaction SQLite a moitie faite, voire plus aucun port en ecoute). On log
+// puis on sort en erreur pour que l'hebergement relance un process propre, plutot que
+// de continuer en silence. Ces handlers sont les seuls du process : un outil monte ne
+// doit poser les siens que sous "if (require.main === module)".
+const fatal = (kind) => (err) => {
+  console.error(`${kind}, arret de la passerelle :`, err);
+  process.exit(1);
+};
+process.on('uncaughtException', fatal('Erreur non interceptee'));
+process.on('unhandledRejection', fatal('Promesse rejetee non geree'));
 
 const fs = require('fs');
 const path = require('path');
@@ -48,6 +52,10 @@ const path = require('path');
     console.log('Installation terminee, demarrage.');
   }
 })();
+
+// Dependances de la passerelle abimees par une installation interrompue : reparees
+// avant de charger express (voir scripts/repair-modules.js), au lieu de planter en boucle.
+require('./scripts/repair-modules').repairIfNeeded(__dirname);
 
 const express = require('express');
 
@@ -187,4 +195,4 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Passerelle disponible sur http://localhost:${PORT}`);
-});
+}).on('error', fatal(`Impossible d'ecouter sur le port ${PORT}`));
