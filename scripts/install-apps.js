@@ -44,7 +44,10 @@ for (const name of names) {
   console.log(`\n--- npm install dans apps/${name} ---`);
   try {
     execSync('npm install --omit=dev --no-audit --no-fund', { cwd: dir, stdio: 'inherit' });
-    fs.utimesSync(path.join(dir, 'node_modules'), new Date(), new Date());
+    // Certains outils installent leurs dependances ailleurs (ex. un package.json racine dont le
+    // postinstall installe server/) : pas de node_modules a dater dans ce cas, ce n'est pas un echec.
+    const modulesDir = path.join(dir, 'node_modules');
+    if (fs.existsSync(modulesDir)) fs.utimesSync(modulesDir, new Date(), new Date());
   } catch (err) {
     console.error(`✗ Echec de "npm install" pour apps/${name} — node_modules supprime, sera reinstalle au prochain deploiement.`);
     fs.rmSync(path.join(dir, 'node_modules'), { recursive: true, force: true });

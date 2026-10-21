@@ -96,6 +96,15 @@ function readMeta(dir, route) {
   };
 }
 
+// Nom de la route d'un outil : par defaut le nom de son dossier, sauf si son package.json declare
+// { "gateway": { "route": "quiz" } }. Utile quand le dossier porte le nom du depot (ex. un
+// deploiement git automatique dans apps/TheBigTeamQuiz-V2) mais que l'adresse voulue est /quiz.
+function routeNameFor(name, dir) {
+  const pkg = readJson(path.join(dir, 'package.json'));
+  const wanted = pkg && pkg.gateway && pkg.gateway.route;
+  return typeof wanted === 'string' && /^[A-Za-z0-9_-]+$/.test(wanted) ? wanted : name;
+}
+
 function findEntry(dir) {
   const pkgPath = path.join(dir, 'package.json');
   if (fs.existsSync(pkgPath)) {
@@ -125,6 +134,7 @@ function mountApps() {
     .filter((name) => { try { return fs.statSync(path.join(APPS_DIR, name)).isDirectory(); } catch (e) { return false; } })
     .sort();
 
+  const usedRoutes = new Set();
   for (const name of names) {
     const dir = path.join(APPS_DIR, name);
     const entry = findEntry(dir);
@@ -137,7 +147,10 @@ function mountApps() {
       if (typeof subApp !== 'function') {
         throw new Error(`${entry} doit exporter l'app Express (module.exports = app), pas ${typeof subApp}.`);
       }
-      const route = '/' + name;
+      const routeName = routeNameFor(name, dir);
+      if (usedRoutes.has(routeName)) throw new Error(`la route /${routeName} est deja prise par un autre outil.`);
+      usedRoutes.add(routeName);
+      const route = '/' + routeName;
       app.use(route, subApp);
       // Hook OPTIONNEL : un outil qui exporte aussi attachToServer(httpServer, { mountPath })
       // recoit le serveur HTTP de la passerelle (ex. pour y attacher Socket.IO sous
@@ -150,7 +163,7 @@ function mountApps() {
         }
       }
       const meta = readMeta(dir, route);
-      mounted.push({ id: name, name: meta.title || displayName(name), route, ...meta });
+      mounted.push({ id: routeName, name: meta.title || displayName(routeName), route, ...meta });
       console.log(`✓ ${name} monte sur ${route}`);
     } catch (err) {
       console.error(`✗ Echec du montage de "${name}" :`, err.message);
