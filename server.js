@@ -58,6 +58,7 @@ const path = require('path');
 require('./scripts/repair-modules').repairIfNeeded(__dirname);
 
 const express = require('express');
+const { renderHome } = require('./home');
 const http = require('http');
 
 const PORT = process.env.PORT || 3000;
@@ -68,20 +69,31 @@ const app = express();
 // confier aux outils qui en ont besoin, typiquement Socket.IO (voir attachToServer plus bas).
 const httpServer = http.createServer(app);
 
-// Cherche une icone a afficher pour l'outil sur la page d'accueil, en lisant son
-// manifest.json (PWA) s'il en a un — convention deja suivie par les outils existants,
-// aucune configuration supplementaire a ecrire pour en beneficier.
-function findIcon(dir, route) {
+// Lit les informations d'affichage d'un outil, sans rien a configurer :
+// - manifest.json (PWA, a la racine ou dans public/) : name, short_name, description, theme_color, icons ;
+// - package.json : description ;
+// - bloc facultatif "gateway" du package.json : { "name", "description", "color", "tags": [] } qui
+//   l'emporte sur le reste (utile pour un outil sans manifest, ex. nom propre et etiquette "temps reel").
+function readJson(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { return null; }
+}
+
+function readMeta(dir, route) {
+  let manifest = null;
   for (const rel of ['public/manifest.json', 'manifest.json']) {
-    const manifestPath = path.join(dir, rel);
-    if (!fs.existsSync(manifestPath)) continue;
-    try {
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-      const icon = (manifest.icons || [])[0];
-      if (icon && icon.src) return route + '/' + icon.src.replace(/^\.?\//, '');
-    } catch (e) { /* manifest illisible : pas d'icone */ }
+    const p = path.join(dir, rel);
+    if (fs.existsSync(p)) { manifest = readJson(p); if (manifest) break; }
   }
-  return null;
+  const pkg = readJson(path.join(dir, 'package.json')) || {};
+  const custom = (pkg.gateway && typeof pkg.gateway === 'object') ? pkg.gateway : {};
+  const icon = manifest && (manifest.icons || [])[0];
+  return {
+    icon: icon && icon.src ? route + '/' + icon.src.replace(/^\.?\//, '') : null,
+    title: custom.name || (manifest && (manifest.name || manifest.short_name)) || null,
+    description: custom.description || (manifest && manifest.description) || pkg.description || '',
+    color: custom.color || (manifest && manifest.theme_color) || null,
+    tags: Array.isArray(custom.tags) ? custom.tags.map(String) : []
+  };
 }
 
 function findEntry(dir) {
@@ -93,6 +105,10 @@ function findEntry(dir) {
     } catch (e) { /* package.json invalide : on retombe sur server.js */ }
   }
   return path.join(dir, 'server.js');
+}
+
+function displayName(name) {
+  return name.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function mountApps() {
@@ -133,7 +149,8 @@ function mountApps() {
           console.error(`✗ ${name} : attachToServer a echoue (l'outil reste monte, sans temps reel) :`, err.message);
         }
       }
-      mounted.push({ name, route, icon: findIcon(dir, route) });
+      const meta = readMeta(dir, route);
+      mounted.push({ id: name, name: meta.title || displayName(name), route, ...meta });
       console.log(`✓ ${name} monte sur ${route}`);
     } catch (err) {
       console.error(`✗ Echec du montage de "${name}" :`, err.message);
@@ -144,67 +161,8 @@ function mountApps() {
 
 const mounted = mountApps();
 
-function displayName(name) {
-  return name.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 app.get('/', (req, res) => {
-  const items = mounted.map((m) => `
-    <a class="card" href="${m.route}/">
-      ${m.icon
-        ? `<img class="card-icon" src="${m.icon}" alt="">`
-        : `<span class="card-icon card-icon-fallback">${displayName(m.name).charAt(0)}</span>`}
-      <span class="card-name">${displayName(m.name)}</span>
-      <span class="card-arrow">→</span>
-    </a>`).join('') || '<p class="empty">Aucun outil monté pour le moment.</p>';
-  res.type('html').send(`<!doctype html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Outils</title>
-<style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #f4f2f5; color: #241a1f; padding: 24px;
-  }
-  @media (prefers-color-scheme: dark) {
-    body { background: #17111a; color: #f2e9ec; }
-    .card { background: #241a20 !important; border-color: #3a2a31 !important; }
-    .empty { color: #b8a6ad !important; }
-  }
-  .shell { width: 100%; max-width: 420px; }
-  h1 { font-size: 20px; font-weight: 700; margin: 0 0 18px; text-align: center; }
-  .list { display: flex; flex-direction: column; gap: 10px; }
-  .card {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    background: #fff; border: 1px solid #ecdfe4; border-radius: 14px; padding: 16px 18px;
-    text-decoration: none; color: inherit; font-weight: 600; font-size: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: transform .1s ease, box-shadow .1s ease;
-  }
-  .card:active { transform: scale(0.98); }
-  .card-name { flex: 1; }
-  .card-icon {
-    width: 32px; height: 32px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
-  }
-  .card-icon-fallback {
-    display: flex; align-items: center; justify-content: center;
-    background: #8a2145; color: #fff; font-size: 15px;
-  }
-  .card-arrow { color: #8a2145; font-weight: 700; flex-shrink: 0; }
-  .empty { text-align: center; color: #7a6d72; font-size: 14px; }
-</style>
-</head>
-<body>
-<div class="shell">
-  <h1>Outils disponibles</h1>
-  <div class="list">${items}</div>
-</div>
-</body>
-</html>`);
+  res.type('html').send(renderHome(mounted));
 });
 
 httpServer.listen(PORT, () => {

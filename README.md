@@ -13,6 +13,20 @@ apps/
   mystere/          -> accessible sur /mystere
 ```
 
+## Page d'accueil
+
+La page `/` liste les outils montes (recherche avec la touche `/`, favoris, "Reprendre", theme clair/sombre). Chaque carte se construit sans configuration, a partir de :
+
+- `manifest.json` de l'outil (racine ou `public/`) : `name`, `description`, `theme_color`, `icons` ;
+- `package.json` : `description` ;
+- un bloc **facultatif** `"gateway"` du `package.json`, prioritaire :
+
+```json
+"gateway": { "name": "The Big Team Quiz", "description": "...", "color": "#E0701F", "tags": ["temps reel"] }
+```
+
+Sans rien de tout ca, la carte affiche le nom du dossier avec une couleur stable. Les textes sont echappes avant affichage. Favoris, recents et theme sont gardes dans le navigateur (`localStorage`).
+
 ## Ajouter un outil
 
 1. Dépose le dossier complet de l'outil (avec son `package.json`, `node_modules`, etc.)
