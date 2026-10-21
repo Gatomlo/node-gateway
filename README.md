@@ -45,6 +45,20 @@ comment Répétito le fait dans `apps/repetito/public/app.js`, constante `BASE`,
 à partir de l'URL réelle du script chargé — fonctionne qu'il soit servi à la racine ou
 sous un sous-dossier, sans configuration à coder en dur).
 
+## Outils avec temps reel (Socket.IO) — hook optionnel
+
+La passerelle cree elle-meme le serveur HTTP (`http.createServer(app)`, equivalent a `app.listen`). Un outil qui exporte en plus de son app Express une fonction `attachToServer(httpServer, { mountPath })` la recevra au montage, par exemple pour y attacher Socket.IO sous `<mountPath>/socket.io` :
+
+```js
+app.attachToServer = (httpServer, { mountPath }) => {
+  const io = new Server(httpServer, { path: mountPath + '/socket.io' });
+  // ...
+};
+module.exports = app;
+```
+
+Les outils qui n'exportent pas cette fonction sont montes exactement comme avant.
+
 ## En développement local (ce PC)
 
 Plutôt que de dupliquer le code de chaque outil dans `apps/`, on peut créer un lien

@@ -58,11 +58,15 @@ const path = require('path');
 require('./scripts/repair-modules').repairIfNeeded(__dirname);
 
 const express = require('express');
+const http = require('http');
 
 const PORT = process.env.PORT || 3000;
 const APPS_DIR = path.join(__dirname, 'apps');
 
 const app = express();
+// Serveur HTTP cree explicitement (app.listen() en fait autant en interne) pour pouvoir le
+// confier aux outils qui en ont besoin, typiquement Socket.IO (voir attachToServer plus bas).
+const httpServer = http.createServer(app);
 
 // Cherche une icone a afficher pour l'outil sur la page d'accueil, en lisant son
 // manifest.json (PWA) s'il en a un — convention deja suivie par les outils existants,
@@ -119,6 +123,16 @@ function mountApps() {
       }
       const route = '/' + name;
       app.use(route, subApp);
+      // Hook OPTIONNEL : un outil qui exporte aussi attachToServer(httpServer, { mountPath })
+      // recoit le serveur HTTP de la passerelle (ex. pour y attacher Socket.IO sous
+      // <mountPath>/socket.io). Les outils qui n'ont pas cette fonction sont montes comme avant.
+      if (typeof subApp.attachToServer === 'function') {
+        try {
+          subApp.attachToServer(httpServer, { mountPath: route });
+        } catch (err) {
+          console.error(`✗ ${name} : attachToServer a echoue (l'outil reste monte, sans temps reel) :`, err.message);
+        }
+      }
       mounted.push({ name, route, icon: findIcon(dir, route) });
       console.log(`✓ ${name} monte sur ${route}`);
     } catch (err) {
@@ -193,6 +207,6 @@ app.get('/', (req, res) => {
 </html>`);
 });
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Passerelle disponible sur http://localhost:${PORT}`);
 }).on('error', fatal(`Impossible d'ecouter sur le port ${PORT}`));
