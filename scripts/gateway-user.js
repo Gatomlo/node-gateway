@@ -2,6 +2,7 @@
 // Gestion des comptes de la passerelle en SSH (le premier compte ne peut PAS se creer par le web).
 //   npm run user -- create <identifiant> [--super] [--name "Nom"] [--email x@y.z]
 //   npm run user -- passwd <identifiant>
+//   npm run user -- reset2fa <identifiant>   (perte du telephone : desactive la double authentification)
 //   npm run user -- list
 // Le mot de passe est demande en saisie masquee (ou lu sur stdin s'il est redirige).
 require('../lib/load-env').loadEnv();
@@ -46,8 +47,15 @@ const flag = (args, name) => { const i = args.indexOf(name); return i >= 0 ? arg
     db.prepare('UPDATE gw_users SET password_hash = ? WHERE id = ?').run(hash, u.id);
     db.prepare('DELETE FROM gw_sessions WHERE user_id = ?').run(u.id);
     console.log('Mot de passe change, sessions fermees.');
+  } else if (cmd === 'reset2fa' && login) {
+    const u = db.prepare('SELECT id FROM gw_users WHERE login = ?').get(login);
+    if (!u) throw new Error('compte introuvable');
+    db.prepare('UPDATE gw_users SET totp_secret = NULL, totp_pending = NULL, totp_last = 0 WHERE id = ?').run(u.id);
+    db.prepare('DELETE FROM gw_sessions WHERE user_id = ?').run(u.id);
+    db.prepare('INSERT INTO gw_audit (at, actor, action, target, detail) VALUES (?,?,?,?,?)').run(Date.now(), 'ssh', '2fa.reinitialise', login, 'npm run user -- reset2fa');
+    console.log('Double authentification desactivee, sessions fermees.');
   } else {
-    console.log('Usage : npm run user -- create <identifiant> [--super] [--name "Nom"] [--email x@y.z] | passwd <identifiant> | list');
+    console.log('Usage : npm run user -- create <identifiant> [--super] [--name "Nom"] [--email x@y.z] | passwd <identifiant> | reset2fa <identifiant> | list');
     process.exitCode = 1;
   }
 })().catch((e) => { console.error('Erreur :', e.message); process.exit(1); });

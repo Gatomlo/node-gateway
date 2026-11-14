@@ -175,7 +175,9 @@ function mountApps() {
       // <mountPath>/socket.io). Les outils qui n'ont pas cette fonction sont montes comme avant.
       if (typeof subApp.attachToServer === 'function') {
         try {
-          subApp.attachToServer(httpServer, { mountPath: route });
+          // identify(req) : identite { app, user, role } d'une requete brute (poignee de main Socket.IO), car
+          // req.gateway n'existe que dans le pipeline Express. Absent si l'authentification est inactive.
+          subApp.attachToServer(httpServer, { mountPath: route, identify: gw ? (req) => gw.identify(req, routeName) : undefined });
         } catch (err) {
           console.error(`✗ ${name} : attachToServer a echoue (l'outil reste monte, sans temps reel) :`, err.message);
         }

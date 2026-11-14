@@ -147,7 +147,7 @@ La passerelle a ses propres comptes (SQLite local `data/gateway.db`, indépendan
 npm run user -- create <identifiant> --super --name "Nom"   # mot de passe demandé (12 caractères min.)
 ```
 
-Puis se connecter sur `/_gw/login`, ouvrir `/_gw/admin` pour créer les autres comptes (épouse, animateurs…) et régler leurs droits par outil. Chacun gère son mot de passe sur `/_gw/account`. Autres commandes : `npm run user -- list`, `npm run user -- passwd <identifiant>`.
+Puis se connecter sur `/_gw/login`, ouvrir `/_gw/admin` pour créer les autres comptes (épouse, animateurs…) et régler leurs droits par outil. Chacun gère son mot de passe sur `/_gw/account`. Autres commandes : `npm run user -- list`, `npm run user -- passwd <identifiant>`, `npm run user -- reset2fa <identifiant>` (perte du téléphone).
 
 Il n'y a **pas d'inscription par le web** : seul un administrateur crée les comptes. La base des comptes est incluse dans la sauvegarde automatique (outil `_gateway`).
 
@@ -191,6 +191,14 @@ Module commun : `docs/gateway-bridge.js` (copie de référence, recopiée telle 
 | thebigteamquiz-v2 | droit `admin` | ouvre la porte de l'écran gestionnaire (voir sa section Sécurité) |
 
 Pour les outils à e-mail (kdo, cabas, fretly), renseigner l'e-mail du compte de la passerelle (`/_gw/admin`). La clé de droit est le **nom de route** de l'outil (`gateway.route` du `package.json`, sinon le nom du dossier).
+
+### Double authentification, confirmation et journal
+
+- **2FA (TOTP)** : chaque compte peut l'activer sur `/_gw/account` (Google Authenticator, Aegis, Bitwarden…). Un code à 6 chiffres est ensuite demandé à chaque connexion ; un code ne sert qu'une fois. `GATEWAY_REQUIRE_2FA=1` l'impose aux administrateurs de la passerelle (sans elle, `/_gw/admin` reste fermé). Perte du téléphone : bouton « Réinitialiser la 2FA » sur `/_gw/admin`, ou `npm run user -- reset2fa <identifiant>` en SSH.
+- **Confirmation du mot de passe** : créer, modifier, supprimer un compte ou changer des droits redemande **votre** mot de passe (jamais gardé en mémoire). Une session volée ou une faille XSS dans un outil ne suffit donc pas à prendre le contrôle des comptes.
+- **Journal d'audit** (`/_gw/admin`, table `gw_audit`) : connexions, échecs, actions d'administration, 2FA. Jamais de mot de passe ni de code dedans.
+- **Outils à temps réel** : `attachToServer(httpServer, { mountPath, identify })` reçoit aussi `identify(req)`, qui renvoie `{ app, user, role }` pour une requête brute (poignée de main Socket.IO), car `req.gateway` n'existe que dans le pipeline Express.
+- **Derrière la passerelle ou non** : `behindGateway(req)` (dans `docs/gateway-bridge.js`) permet à un outil de fermer, dans ce cas seulement, des portes ouvertes en mode autonome (ex. création du mot de passe admin par le premier visiteur).
 
 ### Sécurité
 

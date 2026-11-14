@@ -30,14 +30,14 @@ async function call(m,u,body,{cookie,headers}={}){const r=await fetch(B+u,{metho
  r=await fetch(B+'/_gw/auth/login',{method:'POST',headers:{'Content-Type':'text/plain'},body:'x'}); eq(r.status,415);
  // 3. connexion + open redirect
  r=await call('POST','/_gw/auth/login',{login:'thomas',password:P1,next:'//evil.example'}); eq(r.status,200); eq(r.json.next,'/');
- assert(/HttpOnly/.test(r.raw)&&/SameSite=Lax/.test(r.raw)&&/Path=\//.test(r.raw)); const admin=r.cookie;
+ assert(/HttpOnly/.test(r.raw)&&/SameSite=Lax/.test(r.raw)&&/Path=\//.test(r.raw)); let admin=r.cookie;
  r=await call('POST','/_gw/auth/login',{login:'thomas',password:P1,next:'/zz-test/x'}); eq(r.json.next,'/zz-test/x');
  // 4. super => admin partout
  r=await call('GET','/zz-test/whoami',null,{cookie:admin}); eq(r.json.role,'admin'); eq(r.json.user.login,'thomas'); assert(!('access' in r.json.user));
  // 5. creation du compte de l'epouse (membre sur zz-test uniquement)
- r=await call('POST','/_gw/admin/users',{login:'epouse',name:'Epouse',password:P2},{cookie:admin}); eq(r.status,200); const id=r.json.id;
- r=await call('PUT',`/_gw/admin/users/${id}/access`,{access:{'zz-test':'member','inconnu':'admin'}},{cookie:admin}); eq(r.status,400);
- r=await call('PUT',`/_gw/admin/users/${id}/access`,{access:{'zz-test':'member'}},{cookie:admin}); eq(r.status,200);
+ r=await call('POST','/_gw/admin/users',{login:'epouse',name:'Epouse',password:P2,reauth:P1},{cookie:admin}); eq(r.status,200); const id=r.json.id;
+ r=await call('PUT',`/_gw/admin/users/${id}/access`,{access:{'zz-test':'member','inconnu':'admin'},reauth:P1},{cookie:admin}); eq(r.status,400);
+ r=await call('PUT',`/_gw/admin/users/${id}/access`,{access:{'zz-test':'member'},reauth:P1},{cookie:admin}); eq(r.status,200);
  r=await call('POST','/_gw/auth/login',{login:'epouse',password:P2}); const epouse=r.cookie;
  r=await call('GET','/zz-test/whoami',null,{cookie:epouse}); eq(r.json.role,'member');
  r=await call('GET','/zz-autre/whoami',null,{cookie:epouse}); eq(r.json.role,null);
@@ -50,15 +50,44 @@ async function call(m,u,body,{cookie,headers}={}){const r=await fetch(B+u,{metho
  r=await call('GET','/zz-test/whoami',null,{cookie:epouse}); eq(r.json.role,null,'ancienne session doit etre fermee');
  r=await call('GET','/zz-test/whoami',null,{cookie:e2}); eq(r.json.role,'member');
  // 8. desactivation = coupure immediate
- r=await call('PATCH',`/_gw/admin/users/${id}`,{active:false},{cookie:admin}); eq(r.status,200);
+ r=await call('PATCH',`/_gw/admin/users/${id}`,{active:false,reauth:P1},{cookie:admin}); eq(r.status,200);
  r=await call('GET','/zz-test/whoami',null,{cookie:e2}); eq(r.json.role,null);
  r=await call('POST','/_gw/auth/login',{login:'epouse',password:P3}); eq(r.status,401);
  // 9. dernier admin protege
  r=await call('GET','/_gw/admin/users',null,{cookie:admin}); const me=r.json.users.find(u=>u.login==='thomas').id;
- r=await call('DELETE','/_gw/admin/users/'+me,null,{cookie:admin}); eq(r.status,409);
- r=await call('PATCH','/_gw/admin/users/'+me,{isSuper:false},{cookie:admin}); eq(r.status,409);
+ r=await call('DELETE','/_gw/admin/users/'+me,{reauth:P1},{cookie:admin}); eq(r.status,409);
+ r=await call('PATCH','/_gw/admin/users/'+me,{isSuper:false,reauth:P1},{cookie:admin}); eq(r.status,409);
  // 10. anti brute-force
  let last; for(let i=0;i<9;i++) last=await call('POST','/_gw/auth/login',{login:'cible',password:'x'}); eq(last.status,429);
+ // 10b. ré-authentification obligatoire pour les actions sensibles
+ r=await call('POST','/_gw/admin/users',{login:'sansconf',password:P4+'aa'},{cookie:admin}); eq(r.status,403);
+ r=await call('POST','/_gw/admin/users',{login:'sansconf',password:P4+'aa',reauth:'mauvais'},{cookie:admin}); eq(r.status,403);
+ r=await call('GET','/_gw/admin/users',null,{cookie:admin}); assert(!r.json.users.some(u=>u.login==='sansconf'),'aucun compte cree sans confirmation');
+ // 10c. journal d'audit : actions tracées, jamais de secret
+ r=await call('GET','/_gw/admin/audit',null,{cookie:admin}); const acts=r.json.events.map(e=>e.action);
+ for(const a of ['connexion','connexion.echec','compte.cree','droits.modifies','compte.modifie','reauth.echec']) assert(acts.includes(a),'audit manquant : '+a);
+ assert(!JSON.stringify(r.json).includes(P1)&&!JSON.stringify(r.json).includes(P2),'aucun mot de passe dans le journal');
+ r=await call('GET','/_gw/admin/audit',null,{cookie:e2}); eq(r.status,403);
+ // 10d. double authentification TOTP
+ const totp=require(path.join(ROOT,'lib','gw-totp'));
+ r=await call('POST','/_gw/auth/2fa/setup',{password:'faux'},{cookie:admin}); eq(r.status,403);
+ r=await call('POST','/_gw/auth/2fa/setup',{password:P1},{cookie:admin}); eq(r.status,200); const secret=r.json.secret; assert(/^otpauth:\/\/totp\//.test(r.json.uri));
+ r=await call('POST','/_gw/auth/2fa/enable',{code:'000000'},{cookie:admin}); eq(r.status,400);
+ r=await call('POST','/_gw/auth/2fa/enable',{code:totp.code(secret)},{cookie:admin}); eq(r.status,200);
+ r=await call('POST','/_gw/auth/login',{login:'thomas',password:P1}); eq(r.status,401); eq(r.json.needs2fa,true); eq(r.cookie,null);
+ r=await call('POST','/_gw/auth/login',{login:'thomas',password:P1,code:'000000'}); eq(r.status,401); eq(r.cookie,null);
+ const okCode=totp.code(secret,Date.now()+30000); // le code d'activation est deja consomme : pas suivant (tolere)
+ r=await call('POST','/_gw/auth/login',{login:'thomas',password:P1,code:okCode}); eq(r.status,200); const admin2=r.cookie; assert(admin2);
+ r=await call('POST','/_gw/auth/login',{login:'thomas',password:P1,code:okCode}); eq(r.status,401); // un code ne sert qu'une fois
+ r=await call('GET','/_gw/auth/me',null,{cookie:admin2}); eq(r.json.user.twoFactor,true);
+ // reinitialisation par le super-admin (compte de l'epouse n'a pas de 2FA : on teste sur thomas lui-meme via CLI plus bas)
+ // 10e. identité d'une requête brute (poignée de main Socket.IO) : meme resultat que req.gateway
+ r=await call('GET','/zz-test/whoami',null,{cookie:admin2}); eq(r.json.role,'admin');
+ // 10f. perte du telephone : reset2fa en SSH
+ cli(['reset2fa','thomas'],'');
+ r=await call('POST','/_gw/auth/login',{login:'thomas',password:P1}); eq(r.status,200); const admin3=r.cookie;
+ r=await call('GET','/zz-test/whoami',null,{cookie:admin2}); eq(r.json.role,null,'sessions fermees apres reset2fa');
+ admin=admin3;
  // 11. deconnexion
  r=await call('POST','/_gw/auth/logout',{},{cookie:admin}); r=await call('GET','/zz-test/whoami',null,{cookie:admin}); eq(r.json.role,null);
  // 12. pages
