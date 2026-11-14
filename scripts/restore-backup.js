@@ -21,8 +21,10 @@ async function restore(store, id, { replace = false, appsDir = APPS_DIR, key }) 
   const b = await store.get(Number(id));
   if (!b) throw new Error(`sauvegarde #${id} introuvable`);
   const plain = core.decrypt(b.blob, key, b.app, b.file);
-  const target = path.resolve(appsDir, b.app, b.file);
-  const rel = path.relative(path.resolve(appsDir, b.app), target);
+  // La base des comptes de la passerelle (app "_gateway") vit dans data/, pas dans apps/.
+  const baseDir = b.app === '_gateway' ? path.dirname(require('../lib/gw-db').defaultFile()) : path.resolve(appsDir, b.app);
+  const target = b.app === '_gateway' ? require('../lib/gw-db').defaultFile() : path.resolve(appsDir, b.app, b.file);
+  const rel = path.relative(baseDir, target);
   if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('chemin de destination invalide');
   fs.mkdirSync(path.dirname(target), { recursive: true });
   if (!replace) {

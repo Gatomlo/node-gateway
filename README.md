@@ -132,6 +132,56 @@ Par outil, le bloc `"gateway": { "backup": ["data/app.sqlite"] }` du `package.js
 - `.env` contient le mot de passe MySQL **et** la clé sur le même serveur : protéger l'accès SSH/SFTP.
 - Conserver la clé `BACKUP_KEY` séparément (gestionnaire de mots de passe). La changer rend les anciennes sauvegardes illisibles.
 
+## Comptes et droits de la passerelle (connexion centralisée, sans SSO)
+
+La passerelle a ses propres comptes (SQLite local `data/gateway.db`, indépendant de MySQL) et pose **un cookie de session** `gw_session` (`Path=/`, `HttpOnly`, `SameSite=Lax`, `Secure` en HTTPS). Comme tous les outils sont servis par la même origine, ils reçoivent ce cookie sans protocole SSO (ni redirection, ni jeton échangé).
+
+- **La passerelle ne bloque rien** : pages publiques (quiz, joueurs, recettes partagées…), invités et comptes locaux des outils restent inchangés. Chaque outil décide ce qu'il protège.
+- **Droits par outil** : `admin`, `membre` ou aucun. Un compte « administrateur de la passerelle » a tous les droits et gère les comptes.
+- **Un serveur = ses comptes** : sur un second serveur (autre domaine), déployer la même passerelle avec ses propres comptes. Rien n'est partagé entre serveurs (un cookie ne traverse pas les domaines).
+- Si `node:sqlite` est indisponible, la fonction est inactive et rien ne change pour les outils.
+
+### Mise en route (une fois par serveur)
+
+```
+npm run user -- create <identifiant> --super --name "Nom"   # mot de passe demandé (12 caractères min.)
+```
+
+Puis se connecter sur `/_gw/login`, ouvrir `/_gw/admin` pour créer les autres comptes (épouse, animateurs…) et régler leurs droits par outil. Chacun gère son mot de passe sur `/_gw/account`. Autres commandes : `npm run user -- list`, `npm run user -- passwd <identifiant>`.
+
+Il n'y a **pas d'inscription par le web** : seul un administrateur crée les comptes. La base des comptes est incluse dans la sauvegarde automatique (outil `_gateway`).
+
+### Ce que lit un outil
+
+Dans chaque outil monté, `req.gateway` vaut :
+
+```js
+{ app: 'cabas', user: { id, login, name, email, isSuper } | null, role: 'admin' | 'member' | null }
+```
+
+Adaptateur type (à placer dans le `loadUser` de l'outil, **sans retirer sa connexion locale**, qui sert en mode autonome et pour les invités) :
+
+```js
+function loadUser(req, res, next) {
+  const g = req.gateway;                 // absent si l'outil tourne seul : on retombe sur la connexion locale
+  if (!req.user && g && g.role) {
+    req.user = mapGatewayUser(g);        // admin -> compte propriétaire/admin local ; member -> compte membre local
+  }
+  next();
+}
+```
+
+Le rattachement `g.user` → compte local (par e-mail ou identifiant) est propre à chaque outil. Pour un outil à compte unique, `role: 'admin'` correspond simplement au compte propriétaire. `req.gateway` ne peut pas être falsifié par un client : il est posé côté serveur, dans le même process.
+
+### Sécurité
+
+- Mots de passe en scrypt (12 caractères minimum), sessions révocables côté serveur (jeton haché), renouvelées à chaque connexion.
+- Limitation des échecs (8 par identifiant et 20 par IP sur 15 min), temps de réponse constant si le compte n'existe pas.
+- Anti-CSRF : contrôle de l'origine + JSON obligatoire pour les `POST`. Redirection après connexion limitée aux chemins internes.
+- Désactiver un compte ou changer son mot de passe coupe immédiatement ses sessions. Le dernier administrateur ne peut pas être supprimé.
+- Limite à connaître : une faille XSS dans un outil peut agir au nom d'un utilisateur connecté sur les autres outils de la **même** passerelle (cookie partagé). D'où des droits par outil au plus juste et la CSP de chaque outil.
+- `/_gw` est une route réservée : aucun outil ne peut la prendre.
+
 ## En développement local (ce PC)
 
 Plutôt que de dupliquer le code de chaque outil dans `apps/`, on peut créer un lien

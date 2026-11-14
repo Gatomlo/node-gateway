@@ -9,7 +9,9 @@
     "preinstall": "node scripts/install-lock.js start",
     "postinstall": "node scripts/install-apps.js && node scripts/install-lock.js end",
     "restore": "node scripts/restore-backup.js",
-    "backup:setup": "node scripts/setup-backup.js"
+    "backup:setup": "node scripts/setup-backup.js",
+    "user": "node scripts/gateway-user.js",
+    "test": "node test/backup-core.test.js && node test/gateway-auth.e2e.js"
   },
   "dependencies": {
     "express": "^4.19.2",

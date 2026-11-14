@@ -69,6 +69,19 @@ const PORT = process.env.PORT || 3000;
 const APPS_DIR = path.join(__dirname, 'apps');
 
 const app = express();
+
+// Comptes et droits de la passerelle (SQLite local, voir lib/gw-auth.js). Si node:sqlite est
+// indisponible, l'authentification centrale est simplement inactive et les outils restent
+// tels quels (leur propre connexion continue de fonctionner).
+let gw = null;
+const mountedIds = [];
+try {
+  gw = require('./lib/gw-auth').createAuth({ db: require('./lib/gw-db').openGatewayDb(), listApps: () => mountedIds });
+  app.use(gw.attach); // lit la session AVANT le routeur /_gw et les outils
+  app.use('/_gw', gw.router);
+} catch (err) {
+  console.warn('Authentification de la passerelle inactive :', err.message);
+}
 // Serveur HTTP cree explicitement (app.listen() en fait autant en interne) pour pouvoir le
 // confier aux outils qui en ont besoin, typiquement Socket.IO (voir attachToServer plus bas).
 const httpServer = http.createServer(app);
@@ -138,7 +151,7 @@ function mountApps() {
     .filter((name) => { try { return fs.statSync(path.join(APPS_DIR, name)).isDirectory(); } catch (e) { return false; } })
     .sort();
 
-  const usedRoutes = new Set();
+  const usedRoutes = new Set(['_gw']); // /_gw : pages et API de la passerelle
   for (const name of names) {
     const dir = path.join(APPS_DIR, name);
     const entry = findEntry(dir);
@@ -155,7 +168,8 @@ function mountApps() {
       if (usedRoutes.has(routeName)) throw new Error(`la route /${routeName} est deja prise par un autre outil.`);
       usedRoutes.add(routeName);
       const route = '/' + routeName;
-      app.use(route, subApp);
+      if (gw) app.use(route, gw.scope(routeName), subApp); else app.use(route, subApp);
+      mountedIds.push(routeName);
       // Hook OPTIONNEL : un outil qui exporte aussi attachToServer(httpServer, { mountPath })
       // recoit le serveur HTTP de la passerelle (ex. pour y attacher Socket.IO sous
       // <mountPath>/socket.io). Les outils qui n'ont pas cette fonction sont montes comme avant.
