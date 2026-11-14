@@ -94,8 +94,9 @@ app.use((req, res, next) => {
 // tels quels (leur propre connexion continue de fonctionner).
 let gw = null;
 const mountedIds = [];
+const mountedApps = new Map(); // nom de route -> app Express (pour le crochet facultatif gatewayAccounts)
 try {
-  gw = require('./lib/gw-auth').createAuth({ db: require('./lib/gw-db').openGatewayDb(), listApps: () => mountedIds });
+  gw = require('./lib/gw-auth').createAuth({ db: require('./lib/gw-db').openGatewayDb(), listApps: () => mountedIds, appOf: (slug) => mountedApps.get(slug) });
   app.use(gw.attach); // lit la session AVANT le routeur /_gw et les outils
   app.use('/_gw', gw.router);
 } catch (err) {
@@ -189,6 +190,7 @@ function mountApps() {
       const route = '/' + routeName;
       if (gw) app.use(route, gw.scope(routeName), subApp); else app.use(route, subApp);
       mountedIds.push(routeName);
+      mountedApps.set(routeName, subApp);
       // Hook OPTIONNEL : un outil qui exporte aussi attachToServer(httpServer, { mountPath })
       // recoit le serveur HTTP de la passerelle (ex. pour y attacher Socket.IO sous
       // <mountPath>/socket.io). Les outils qui n'ont pas cette fonction sont montes comme avant.

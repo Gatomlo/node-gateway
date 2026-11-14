@@ -161,6 +161,15 @@ Sur `/_gw/admin`, à côté du droit de chaque outil, le champ **« compte local
 
 Jamais plus d'un compte retenu, jamais de compte créé. `req.gateway.local` transmet ce choix à l'outil.
 
+**Choisir le compte dans une liste.** À l'ouverture d'un compte sur `/_gw/admin`, la passerelle demande à chaque outil la liste de ses comptes et propose un choix dans le champ « compte local », avec une pastille : `✓ lié à …` ou `⚠ aucun compte correspondant`. C'est un **crochet facultatif** de l'outil, en lecture seule, réservé à l'administrateur de la passerelle :
+
+```js
+// dans le server.js de l'outil, avant module.exports = app
+app.gatewayAccounts = () => [{ key: 'epouse@exemple.be', name: 'Marie', detail: 'gestionnaire', email: 'epouse@exemple.be', login: 'marie' }];
+```
+
+`key` = ce qui sera enregistré dans « compte local » (identifiant ou e-mail, selon ce que l'outil sait retrouver). Jamais de mot de passe, d'empreinte ni de jeton : la passerelle n'en relaie rien (champs limités à `key`, `name`, `detail`, `login`, `email`, 120 caractères, 500 comptes). Outil sans crochet : la saisie à la main reste possible.
+
 ### Ce que lit un outil
 
 Dans chaque outil monté, `req.gateway` vaut :

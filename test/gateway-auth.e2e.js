@@ -8,7 +8,7 @@ const ROOT=path.join(__dirname,'..'), PORT=3917, B=`http://localhost:${PORT}`;
 const dbfile=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'gwt-')),'gateway.db');
 const env={...process.env,GATEWAY_DB:dbfile,PORT:String(PORT)};
 fs.mkdirSync(path.join(ROOT,'apps','zz-test'),{recursive:true});
-fs.writeFileSync(path.join(ROOT,'apps','zz-test','server.js'),"const e=require('express');const a=e();a.get('/whoami',(q,s)=>s.json(q.gateway));module.exports=a;");
+fs.writeFileSync(path.join(ROOT,'apps','zz-test','server.js'),"const e=require('express');const a=e();a.get('/whoami',(q,s)=>s.json(q.gateway));a.gatewayAccounts=()=>[{key:'epouse.perso@exemple.be',name:'Epouse',detail:'parent',email:'epouse.perso@exemple.be',login:'epouse',passwordHash:'SECRET',token:'SECRET'},{key:'',name:'sans cle'},{key:'x'.repeat(300),name:'trop long'}];module.exports=a;");
 fs.mkdirSync(path.join(ROOT,'apps','zz-autre'),{recursive:true});
 fs.writeFileSync(path.join(ROOT,'apps','zz-autre','server.js'),"const e=require('express');const a=e();a.get('/whoami',(q,s)=>s.json(q.gateway));a.get('/own-csp',(q,s)=>{s.set('Content-Security-Policy',\"default-src 'none'\");s.json({ok:1})});module.exports=a;");
 const cli=(args,pw)=>execFileSync('node',['scripts/gateway-user.js',...args],{cwd:ROOT,env,input:pw+'\n'}).toString();
@@ -50,6 +50,14 @@ async function call(m,u,body,{cookie,headers}={}){const r=await fetch(B+u,{metho
  r=await call('GET','/_gw/admin/audit',null,{cookie:admin}); assert(r.json.events.some(e=>e.action==='droits.modifies'&&/zz-test:member=epouse\.perso@exemple\.be/.test(e.detail)),'audit du compte local');
  r=await call('PUT',`/_gw/admin/users/${id}/access`,{access:{'zz-test':'member'},reauth:P1},{cookie:admin}); eq(r.status,200); // retire le compte local
  r=await call('GET','/zz-test/whoami',null,{cookie:epouseL}); eq(r.json.local,null);
+ // 5c. liste des comptes existants dans un outil (crochet facultatif) : super-admin seulement, lecture seule, rien de secret relaye
+ r=await call('GET','/_gw/admin/apps/zz-test/accounts',null,{cookie:admin}); eq(r.status,200); eq(r.json.supported,true);
+ eq(r.json.accounts.length,2,'cle vide ecartee'); eq(r.json.accounts[0].key,'epouse.perso@exemple.be'); eq(r.json.accounts[1].key.length,120,'chaines bornees');
+ assert(!JSON.stringify(r.json).includes('SECRET'),'aucun champ secret relaye');
+ r=await call('GET','/_gw/admin/apps/zz-autre/accounts',null,{cookie:admin}); eq(r.status,200); eq(r.json.supported,false); eq(r.json.accounts.length,0);
+ r=await call('GET','/_gw/admin/apps/inconnu/accounts',null,{cookie:admin}); eq(r.status,404);
+ r=await call('GET','/_gw/admin/apps/zz-test/accounts',null,{cookie:epouseL}); eq(r.status,403);
+ r=await call('GET','/_gw/admin/apps/zz-test/accounts'); eq(r.status,403);
  // 6. un non-admin n'accede pas a l'administration
  r=await call('GET','/_gw/admin/users',null,{cookie:epouse}); eq(r.status,403);
  r=await call('POST','/_gw/admin/users',{login:'x1',password:P4},{cookie:epouse}); eq(r.status,403);
