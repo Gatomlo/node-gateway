@@ -92,11 +92,12 @@ Par outil, le bloc `"gateway": { "backup": ["data/app.sqlite"] }` du `package.js
 
 Droits MySQL du compte dedie : `SELECT, INSERT, DELETE` (+ `CREATE` une fois pour creer les tables, sinon executer le SQL de `lib/backup-store.js`, constante `SCHEMA`). `DELETE` sert a la retention ; retirer ce droit et poser `BACKUP_PRUNE=0` si on prefere une table en ajout seul.
 
-Restauration **manuelle** (arreter la passerelle avant `--replace`) :
+Restauration **manuelle** en SSH (arreter la passerelle avant de remplacer) :
 
 ```
-node scripts/restore-backup.js list [outil]
-node scripts/restore-backup.js restore <id> [--replace]
+npm run restore                      # mode interactif : choix de l'outil, de la date, confirmation
+npm run restore -- list [outil]
+npm run restore -- <id> [--replace]
 ```
 
 Sans `--replace`, la base est ecrite en `<fichier>.restored` sans rien ecraser. Une sauvegarde alteree est refusee (authentification GCM). La copie reste chez le meme hebergeur : faire de temps en temps un export `mysqldump` vers un autre support.
