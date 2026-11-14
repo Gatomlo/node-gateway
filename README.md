@@ -75,32 +75,62 @@ Les outils qui n'exportent pas cette fonction sont montes exactement comme avant
 
 ## Sauvegarde automatique des bases SQLite (vers MySQL)
 
-La passerelle copie les bases SQLite des outils (`*.db`, `*.sqlite`, `*.sqlite3` sous `apps/<outil>/`, hors `node_modules`) dans MySQL, **chiffrees** (gzip + AES-256-GCM, cle hors base). Elle est **inactive tant que `BACKUP_KEY` n'est pas definie**. Necessite Node >= 22.5 (`node:sqlite`).
+La passerelle copie périodiquement les bases SQLite des outils (`*.db`, `*.sqlite`, `*.sqlite3` sous `apps/<outil>/`, hors `node_modules`) dans une base MySQL, **chiffrées** (gzip + AES-256-GCM, clé conservée hors de la base). La copie est cohérente même si l'outil écrit en même temps (mode WAL).
 
-**Installation guidee (recommandee)** : en SSH dans le dossier de la passerelle, `npm install` puis `node scripts/setup-backup.js`. Le script genere `BACKUP_KEY` (affichee une seule fois : la copier dans un gestionnaire de mots de passe), demande hote / base / utilisateur / mot de passe (masque), ecrit `.env` (droits 600, ignore par Git, charge au demarrage), teste MySQL, cree les tables et liste les bases detectees.
+- **Inactive tant que `BACKUP_KEY` n'est pas définie** : sans configuration, la passerelle démarre comme avant.
+- Prérequis : Node ≥ 22.5 (`node:sqlite`), un compte MySQL dédié.
+- Fréquence : toutes les 6 h par défaut, 1er passage 30 s après le démarrage. Une base inchangée n'est pas re-sauvegardée.
+- Rétention : 7 quotidiennes, 4 hebdomadaires, 6 mensuelles.
+- Une erreur de sauvegarde est seulement journalisée, elle n'arrête jamais la passerelle.
 
-Ou a la main, avec ces variables d'environnement (manager Infomaniak ou `.env`, jamais dans le depot) :
+### Mise en route (une seule fois)
 
-| Variable | Role |
+1. **MySQL** : dans le manager Infomaniak, créer une base et un utilisateur dédiés, avec les droits `SELECT`, `INSERT`, `DELETE` (+ `CREATE` pour la première exécution).
+2. **Déployer** cette version de la passerelle, puis en SSH dans son dossier :
+   ```
+   npm install
+   npm run backup:setup
+   ```
+   Le script demande hôte, base, utilisateur et mot de passe (saisie masquée), génère la clé `BACKUP_KEY`, écrit `.env` (droits 600, ignoré par Git, chargé au démarrage), teste MySQL, crée les tables et liste les bases SQLite détectées.
+3. **Copier la clé affichée dans un gestionnaire de mots de passe.** Elle n'est montrée qu'une fois et **sans elle les sauvegardes sont illisibles**. Ne la coller ni dans un chat ni dans Git.
+4. **Redémarrer** la passerelle. Les lignes `[backup] ... sauvegarde` apparaissent dans les logs.
+5. **Tester la restauration** une fois (voir ci-dessous, mode 1) : une sauvegarde jamais restaurée n'est pas une sauvegarde.
+
+Si le compte n'a pas le droit `CREATE`, créer les tables avec le SQL de la constante `SCHEMA` dans `lib/backup-store.js`.
+
+### Restaurer une sauvegarde (SSH)
+
+```
+npm run restore                      # mode interactif (recommandé)
+npm run restore -- list [outil]      # lister les sauvegardes
+npm run restore -- <id> [--replace]  # restaurer directement la sauvegarde #id
+```
+
+En mode interactif : choix de l'outil, puis de la date (1 = la plus récente), puis :
+
+1. **écrire `<fichier>.restored`** à côté de la base, sans rien écraser (pour vérifier le contenu) ;
+2. **remplacer la base actuelle**, après confirmation en tapant `oui`. L'ancienne base est conservée en `<fichier>.bak-<date>`.
+
+**Arrêter la passerelle avant de remplacer une base**, puis la relancer. Une sauvegarde modifiée ou rattachée à un autre outil est refusée avant toute écriture.
+
+### Configuration (facultatif)
+
+Variables d'environnement, définies dans `.env` (ou dans le manager de l'hébergement, qui est prioritaire) :
+
+| Variable | Rôle |
 |---|---|
-| `BACKUP_KEY` | 64 caracteres hexa : `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. **A sauvegarder ailleurs : sans elle, les sauvegardes sont illisibles.** |
-| `DB_HOST`, `DB_PORT` (3306), `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Acces MySQL |
-| `BACKUP_INTERVAL_HOURS` | Frequence (6 par defaut) ; une base inchangee n'est pas re-sauvegardee |
-| `BACKUP_PRUNE=0` | Desactive la retention (7 quotidiennes, 4 hebdo, 6 mensuelles) |
+| `BACKUP_KEY` | 64 caractères hexa. Génération manuelle : `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `DB_HOST`, `DB_PORT` (3306), `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Accès MySQL |
+| `BACKUP_INTERVAL_HOURS` | Fréquence en heures (6 par défaut) |
+| `BACKUP_PRUNE=0` | Désactive la rétention. Le droit `DELETE` devient alors inutile : table en ajout seul |
 
-Par outil, le bloc `"gateway": { "backup": ["data/app.sqlite"] }` du `package.json` remplace la detection automatique (`[]` = ne rien sauvegarder).
+Par outil, le bloc `"gateway": { "backup": ["data/app.sqlite"] }` du `package.json` remplace la détection automatique (`[]` = ne rien sauvegarder).
 
-Droits MySQL du compte dedie : `SELECT, INSERT, DELETE` (+ `CREATE` une fois pour creer les tables, sinon executer le SQL de `lib/backup-store.js`, constante `SCHEMA`). `DELETE` sert a la retention ; retirer ce droit et poser `BACKUP_PRUNE=0` si on prefere une table en ajout seul.
+### Limites et bonnes pratiques
 
-Restauration **manuelle** en SSH (arreter la passerelle avant de remplacer) :
-
-```
-npm run restore                      # mode interactif : choix de l'outil, de la date, confirmation
-npm run restore -- list [outil]
-npm run restore -- <id> [--replace]
-```
-
-Sans `--replace`, la base est ecrite en `<fichier>.restored` sans rien ecraser. Une sauvegarde alteree est refusee (authentification GCM). La copie reste chez le meme hebergeur : faire de temps en temps un export `mysqldump` vers un autre support.
+- La sauvegarde est sur **le même hébergeur** : elle protège d'une corruption ou d'une suppression de fichier, pas de la perte de l'hébergement. Faire de temps en temps un `mysqldump` vers un autre support.
+- `.env` contient le mot de passe MySQL **et** la clé sur le même serveur : protéger l'accès SSH/SFTP.
+- Conserver la clé `BACKUP_KEY` séparément (gestionnaire de mots de passe). La changer rend les anciennes sauvegardes illisibles.
 
 ## En développement local (ce PC)
 
