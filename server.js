@@ -29,6 +29,10 @@ process.on('unhandledRejection', fatal('Promesse rejetee non geree'));
 const fs = require('fs');
 const path = require('path');
 
+// Variables d'un eventuel fichier .env (ex. cree par scripts/setup-backup.js) ; ne remplace jamais
+// celles deja definies par l'hebergement.
+require('./lib/load-env').loadEnv();
+
 // Si un "npm install" est encore en cours (verrou pose en "preinstall", retire en
 // "postinstall" — voir package.json et scripts/install-lock.js), on attend sa fin
 // avant de charger le moindre module. Sans ca, l'hebergement peut demarrer l'app

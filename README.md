@@ -77,7 +77,9 @@ Les outils qui n'exportent pas cette fonction sont montes exactement comme avant
 
 La passerelle copie les bases SQLite des outils (`*.db`, `*.sqlite`, `*.sqlite3` sous `apps/<outil>/`, hors `node_modules`) dans MySQL, **chiffrees** (gzip + AES-256-GCM, cle hors base). Elle est **inactive tant que `BACKUP_KEY` n'est pas definie**. Necessite Node >= 22.5 (`node:sqlite`).
 
-Variables d'environnement (a definir dans le manager Infomaniak, jamais dans le depot) :
+**Installation guidee (recommandee)** : en SSH dans le dossier de la passerelle, `npm install` puis `node scripts/setup-backup.js`. Le script genere `BACKUP_KEY` (affichee une seule fois : la copier dans un gestionnaire de mots de passe), demande hote / base / utilisateur / mot de passe (masque), ecrit `.env` (droits 600, ignore par Git, charge au demarrage), teste MySQL, cree les tables et liste les bases detectees.
+
+Ou a la main, avec ces variables d'environnement (manager Infomaniak ou `.env`, jamais dans le depot) :
 
 | Variable | Role |
 |---|---|

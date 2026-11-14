@@ -7,6 +7,7 @@
 // ARRETER la passerelle avant --replace. Variables : BACKUP_KEY et DB_* (comme le serveur).
 const fs = require('fs');
 const path = require('path');
+require('../lib/load-env').loadEnv();
 const { configFromEnv, createMysqlStore } = require('../lib/backup-store');
 const core = require('../lib/backup-core');
 
