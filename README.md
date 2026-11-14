@@ -186,7 +186,7 @@ Module commun : `docs/gateway-bridge.js` (copie de référence, recopiée telle 
 | lexiquest | identifiant d'un **parent** (jamais un élève) | session contrôlée à chaque requête |
 | watch-it, feelezcomptes | identifiant | session `express-session` contrôlée à chaque requête |
 | repetito | e-mail, sinon nom | route `GET /api/auth/gateway` → jeton contrôlé à chaque requête |
-| carbonum, defifous | droit `admin` | contrôle à chaque requête, sans session |
+| carbonum, defifous, phoenix-quest-v2 (branche `gateway`) | droit `admin` | contrôle à chaque requête, sans session |
 | crazy-farming | droit `admin` | jeton animateur de 2 h (`GET /api/auth/gateway`), valable pour la console temps réel |
 | thebigteamquiz-v2 | droit `admin` | ouvre la porte de l'écran gestionnaire (voir sa section Sécurité) |
 
