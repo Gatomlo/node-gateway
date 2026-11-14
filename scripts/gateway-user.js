@@ -12,11 +12,14 @@ const { createAuth } = require('../lib/gw-auth');
 
 function askHidden(label) {
   return new Promise((resolve) => {
-    if (!process.stdin.isTTY) { // entree redirigee : premiere ligne de stdin
+    if (!process.stdin.isTTY) { // terminal non interactif (console web) ou entree redirigee : premiere ligne de stdin
+      process.stdout.write(`${label} : `);
       let data = '';
+      const finish = (line) => { process.stdin.pause(); resolve(line.replace(/\r$/, '')); };
       process.stdin.setEncoding('utf8');
-      process.stdin.on('data', (c) => { data += c; });
-      process.stdin.on('end', () => resolve(data.split(/\r?\n/)[0]));
+      process.stdin.on('data', (c) => { data += c; const i = data.indexOf('\n'); if (i >= 0) finish(data.slice(0, i)); });
+      process.stdin.on('end', () => finish(data.split('\n')[0]));
+      process.stdin.resume();
       return;
     }
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
