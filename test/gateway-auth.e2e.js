@@ -10,7 +10,7 @@ const env={...process.env,GATEWAY_DB:dbfile,PORT:String(PORT)};
 fs.mkdirSync(path.join(ROOT,'apps','zz-test'),{recursive:true});
 fs.writeFileSync(path.join(ROOT,'apps','zz-test','server.js'),"const e=require('express');const a=e();a.get('/whoami',(q,s)=>s.json(q.gateway));module.exports=a;");
 fs.mkdirSync(path.join(ROOT,'apps','zz-autre'),{recursive:true});
-fs.writeFileSync(path.join(ROOT,'apps','zz-autre','server.js'),"const e=require('express');const a=e();a.get('/whoami',(q,s)=>s.json(q.gateway));module.exports=a;");
+fs.writeFileSync(path.join(ROOT,'apps','zz-autre','server.js'),"const e=require('express');const a=e();a.get('/whoami',(q,s)=>s.json(q.gateway));a.get('/own-csp',(q,s)=>{s.set('Content-Security-Policy',\"default-src 'none'\");s.json({ok:1})});module.exports=a;");
 const cli=(args,pw)=>execFileSync('node',['scripts/gateway-user.js',...args],{cwd:ROOT,env,input:pw+'\n'}).toString();
 let srv;
 let n=0;const eq=(a,b)=>{n++;if(a!==b)throw new Error('assertion n°'+n+' : obtenu '+a+' attendu '+b)};
@@ -90,6 +90,10 @@ async function call(m,u,body,{cookie,headers}={}){const r=await fetch(B+u,{metho
  admin=admin3;
  // 11. deconnexion
  r=await call('POST','/_gw/auth/logout',{},{cookie:admin}); r=await call('GET','/zz-test/whoami',null,{cookie:admin}); eq(r.json.role,null);
+ // 11b. en-tetes de securite de base : ajoutes, mais jamais a la place de ceux d'un outil
+ r=await fetch(B+'/zz-test/whoami',{headers:{'x-forwarded-proto':'https'}}); assert(/frame-ancestors 'self'/.test(r.headers.get('content-security-policy')),'CSP de base'); eq(r.headers.get('x-content-type-options'),'nosniff'); assert(/max-age=/.test(r.headers.get('strict-transport-security')),'HSTS en https');
+ r=await fetch(B+'/zz-test/whoami'); eq(r.headers.get('strict-transport-security'),null);
+ r=await fetch(B+'/zz-autre/own-csp'); eq(r.headers.get('content-security-policy'),"default-src 'none'"); // la CSP de l'outil est conservee
  // 12. pages
  for(const p of ['/_gw/login','/_gw/account','/_gw/admin','/_gw/gw.js']){const x=await fetch(B+p);eq(x.status,200);}
  assert(/script-src 'self'/.test((await fetch(B+'/_gw/login')).headers.get('content-security-policy')));

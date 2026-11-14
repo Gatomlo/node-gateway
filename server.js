@@ -70,6 +70,25 @@ const APPS_DIR = path.join(__dirname, 'apps');
 
 const app = express();
 
+// En-tetes de securite de base, ajoutes a TOUTE reponse qui n'a pas deja les siens (un outil qui pose sa propre CSP
+// n'est jamais modifie). Volontairement sans script-src : impossible de casser un outil, mais on ferme deja
+// l'integration dans un cadre tiers (clickjacking), les plugins, le detournement de <base> et des formulaires.
+const BASELINE_CSP = "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
+app.use((req, res, next) => {
+  const writeHead = res.writeHead;
+  res.writeHead = function (...args) {
+    if (!res.headersSent) {
+      if (!res.getHeader('Content-Security-Policy') && !res.getHeader('Content-Security-Policy-Report-Only')) res.setHeader('Content-Security-Policy', BASELINE_CSP);
+      if (!res.getHeader('X-Content-Type-Options')) res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (!res.getHeader('Referrer-Policy')) res.setHeader('Referrer-Policy', 'same-origin');
+      const https = req.secure || String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+      if (https && !res.getHeader('Strict-Transport-Security')) res.setHeader('Strict-Transport-Security', 'max-age=15552000'); // 180 jours, sans sous-domaines
+    }
+    return writeHead.apply(this, args);
+  };
+  next();
+});
+
 // Comptes et droits de la passerelle (SQLite local, voir lib/gw-auth.js). Si node:sqlite est
 // indisponible, l'authentification centrale est simplement inactive et les outils restent
 // tels quels (leur propre connexion continue de fonctionner).

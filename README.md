@@ -197,8 +197,23 @@ Pour les outils à e-mail (kdo, cabas, fretly), renseigner l'e-mail du compte de
 - **2FA (TOTP)** : chaque compte peut l'activer sur `/_gw/account` (Google Authenticator, Aegis, Bitwarden…). Un code à 6 chiffres est ensuite demandé à chaque connexion ; un code ne sert qu'une fois. `GATEWAY_REQUIRE_2FA=1` l'impose aux administrateurs de la passerelle (sans elle, `/_gw/admin` reste fermé). Perte du téléphone : bouton « Réinitialiser la 2FA » sur `/_gw/admin`, ou `npm run user -- reset2fa <identifiant>` en SSH.
 - **Confirmation du mot de passe** : créer, modifier, supprimer un compte ou changer des droits redemande **votre** mot de passe (jamais gardé en mémoire). Une session volée ou une faille XSS dans un outil ne suffit donc pas à prendre le contrôle des comptes.
 - **Journal d'audit** (`/_gw/admin`, table `gw_audit`) : connexions, échecs, actions d'administration, 2FA. Jamais de mot de passe ni de code dedans.
+- **En-têtes de base** : toute réponse sans CSP reçoit `frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'`, plus `nosniff`, `Referrer-Policy: same-origin` et, en HTTPS, HSTS (180 jours, sans sous-domaines). Une CSP posée par l'outil n'est **jamais** remplacée. Volontairement sans `script-src` : impossible de casser un outil. Une vraie CSP par outil (sans scripts en ligne) reste la meilleure défense contre le XSS.
 - **Outils à temps réel** : `attachToServer(httpServer, { mountPath, identify })` reçoit aussi `identify(req)`, qui renvoie `{ app, user, role }` pour une requête brute (poignée de main Socket.IO), car `req.gateway` n'existe que dans le pipeline Express.
 - **Derrière la passerelle ou non** : `behindGateway(req)` (dans `docs/gateway-bridge.js`) permet à un outil de fermer, dans ce cas seulement, des portes ouvertes en mode autonome (ex. création du mot de passe admin par le premier visiteur).
+
+### Correctifs de sécurité des outils (branche `claude/security-fixes` de chaque dépôt)
+
+Branches **empilées sur `claude/gateway-bridge`** (elles en dépendent). À fusionner dans cet ordre : `gateway-bridge`, puis `security-fixes`.
+
+| Outil | Correctifs |
+|---|---|
+| quiz | gestion HTTP et Socket.IO réservées au droit `admin` ; uploads limités aux médias (+ `nosniff`, CSP `sandbox`) ; plus de CORS ; plus de mot de passe par défaut |
+| Phoenix | XSS stocké joueur → animateur corrigé (prouvé en navigateur) ; 8 essais / 15 min ; cookie `Secure` et limité au montage |
+| carbonum, crazy-farming, defifous | création du mot de passe fermée au premier visiteur ; mots de passe plus longs ; cookie limité au montage (carbonum) |
+| repetito | sessions qui expirent ; jeton URL limité à l'audio ; 8 caractères ; premier compte fermé |
+| cahiermalin, kdo, cabas, fretly, bibliothèque, mainotes | création du premier compte fermée derrière la passerelle |
+| watch-it, feelezcomptes | cookie de session limité au montage |
+| tous | dépendances à jour (`npm audit` : 0, sauf pdfjs-dist de cabas : atténué et documenté) |
 
 ### Sécurité
 
