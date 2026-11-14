@@ -173,6 +173,25 @@ function loadUser(req, res, next) {
 
 Le rattachement `g.user` → compte local (par e-mail ou identifiant) est propre à chaque outil. Pour un outil à compte unique, `role: 'admin'` correspond simplement au compte propriétaire. `req.gateway` ne peut pas être falsifié par un client : il est posé côté serveur, dans le même process.
 
+### Adaptateurs déjà écrits (branche `claude/gateway-bridge` de chaque dépôt)
+
+Module commun : `docs/gateway-bridge.js` (copie de référence, recopiée telle quelle dans chaque outil). Règle de rattachement : **jamais de compte créé**, on retrouve le compte local existant.
+
+| Outil | Rattachement | Mécanisme |
+|---|---|---|
+| cahiermalin | identifiant | session locale de 2 h ; l'espace parent reste verrouillé |
+| kdo, listes-courses (cabas), fretly | e-mail | session locale de 2 h |
+| mylittlelibraryv2 | e-mail, sinon identifiant | session locale de 2 h |
+| mainotes | identifiant | session locale de 2 h, jamais prolongée |
+| lexiquest | identifiant d'un **parent** (jamais un élève) | session contrôlée à chaque requête |
+| watch-it, feelezcomptes | identifiant | session `express-session` contrôlée à chaque requête |
+| repetito | e-mail, sinon nom | route `GET /api/auth/gateway` → jeton contrôlé à chaque requête |
+| carbonum, defifous | droit `admin` | contrôle à chaque requête, sans session |
+| crazy-farming | droit `admin` | jeton animateur de 2 h (`GET /api/auth/gateway`), valable pour la console temps réel |
+| thebigteamquiz-v2 | droit `admin` | ouvre la porte de l'écran gestionnaire (voir sa section Sécurité) |
+
+Pour les outils à e-mail (kdo, cabas, fretly), renseigner l'e-mail du compte de la passerelle (`/_gw/admin`). La clé de droit est le **nom de route** de l'outil (`gateway.route` du `package.json`, sinon le nom du dossier).
+
 ### Sécurité
 
 - Mots de passe en scrypt (12 caractères minimum), sessions révocables côté serveur (jeton haché), renouvelées à chaque connexion.
