@@ -41,6 +41,15 @@ async function call(m,u,body,{cookie,headers}={}){const r=await fetch(B+u,{metho
  r=await call('POST','/_gw/auth/login',{login:'epouse',password:P2}); const epouse=r.cookie;
  r=await call('GET','/zz-test/whoami',null,{cookie:epouse}); eq(r.json.role,'member');
  r=await call('GET','/zz-autre/whoami',null,{cookie:epouse}); eq(r.json.role,null);
+ // 5b. compte local different : "compte dans l'outil" transmis a l'outil, par app
+ r=await call('PUT',`/_gw/admin/users/${id}/access`,{access:{'zz-test':'member'},locals:{'zz-test':'  epouse.perso@exemple.be  ','zz-autre':'ignore'},reauth:P1},{cookie:admin}); eq(r.status,200);
+ r=await call('POST','/_gw/auth/login',{login:'epouse',password:P2}); const epouseL=r.cookie;
+ r=await call('GET','/zz-test/whoami',null,{cookie:epouseL}); eq(r.json.local,'epouse.perso@exemple.be'); eq(r.json.role,'member');
+ r=await call('GET','/zz-autre/whoami',null,{cookie:epouseL}); eq(r.json.local,null); // pas de droit sur zz-autre : rien n'est transmis
+ r=await call('GET','/_gw/admin/users',null,{cookie:admin}); eq(r.json.users.find(u=>u.login==='epouse').locals['zz-test'],'epouse.perso@exemple.be');
+ r=await call('GET','/_gw/admin/audit',null,{cookie:admin}); assert(r.json.events.some(e=>e.action==='droits.modifies'&&/zz-test:member=epouse\.perso@exemple\.be/.test(e.detail)),'audit du compte local');
+ r=await call('PUT',`/_gw/admin/users/${id}/access`,{access:{'zz-test':'member'},reauth:P1},{cookie:admin}); eq(r.status,200); // retire le compte local
+ r=await call('GET','/zz-test/whoami',null,{cookie:epouseL}); eq(r.json.local,null);
  // 6. un non-admin n'accede pas a l'administration
  r=await call('GET','/_gw/admin/users',null,{cookie:epouse}); eq(r.status,403);
  r=await call('POST','/_gw/admin/users',{login:'x1',password:P4},{cookie:epouse}); eq(r.status,403);

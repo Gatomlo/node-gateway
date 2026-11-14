@@ -151,6 +151,16 @@ Puis se connecter sur `/_gw/login`, ouvrir `/_gw/admin` pour créer les autres c
 
 Il n'y a **pas d'inscription par le web** : seul un administrateur crée les comptes. La base des comptes est incluse dans la sauvegarde automatique (outil `_gateway`).
 
+### Quand les identifiants ne sont pas les mêmes
+
+Sur `/_gw/admin`, à côté du droit de chaque outil, le champ **« compte local »** indique quel compte de l'outil correspond à cette personne : son **identifiant** ou son **e-mail dans l'outil**. À remplir seulement quand il **diffère** de celui de la passerelle. Règle de rattachement dans les outils, par ordre de priorité :
+
+1. le **compte local** indiqué par l'administrateur ; s'il n'existe pas dans l'outil, **personne n'est connecté** (aucun repli : une faute de frappe ne doit jamais ouvrir le compte d'un autre) ;
+2. sinon l'**e-mail** identique ;
+3. sinon l'**identifiant** identique.
+
+Jamais plus d'un compte retenu, jamais de compte créé. `req.gateway.local` transmet ce choix à l'outil.
+
 ### Ce que lit un outil
 
 Dans chaque outil monté, `req.gateway` vaut :
