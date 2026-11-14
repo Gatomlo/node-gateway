@@ -134,6 +134,9 @@ const STYLE = `
   .empty { grid-column: 1 / -1; text-align: center; padding: 44px 16px; border: 1px dashed var(--line); border-radius: 20px; color: var(--muted); }
   .empty b { color: var(--fg); }
   .foot-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; color: var(--muted); font-size: 13px; }
+  .acct { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+  .acct a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .acct a:hover { text-decoration: underline; }
   .theme { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 10px; padding: 6px 12px; font: 600 13px var(--f-body); cursor: pointer; }
   a:focus-visible, button:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -236,7 +239,13 @@ const SCRIPT = `
 })();
 `;
 
-function renderHome(tools) {
+// Liens de compte (page d'accueil) : connexion si anonyme ; sinon nom, mon compte et, pour l'administrateur, les comptes.
+function accountLinks(user) {
+  if (!user) return '<a href="_gw/login?next=/">Connexion</a>';
+  return `<span>${esc(user.name || user.login)}</span> · <a href="_gw/account">Mon compte</a>${user.isSuper ? ' · <a href="_gw/admin">Comptes</a>' : ''}`;
+}
+
+function renderHome(tools, user) {
   const list = tools.map((t) => ({ ...t, color: t.color || colorFor(t.name) }));
   // Donnees pour le script : "<" echappe pour qu'un nom ne puisse pas fermer la balise <script>.
   const data = JSON.stringify(list).replace(/</g, '\\u003c');
@@ -279,6 +288,7 @@ function renderHome(tools) {
   </section>
   <div class="foot-bar">
     <span>${list.length} outil${list.length > 1 ? 's' : ''} sur cette passerelle</span>
+    <nav class="acct" aria-label="Compte">${accountLinks(user)}</nav>
     <button class="theme" id="themeBtn" type="button">Thème : système</button>
   </div>
 </div>

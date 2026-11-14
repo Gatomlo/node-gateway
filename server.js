@@ -214,7 +214,8 @@ function mountApps() {
 const mounted = mountApps();
 
 app.get('/', (req, res) => {
-  res.type('html').send(renderHome(mounted));
+  res.set('Cache-Control', 'private, no-store'); // la page depend de la personne connectee
+  res.type('html').send(renderHome(mounted, req.gatewayUser));
 });
 
 httpServer.listen(PORT, () => {

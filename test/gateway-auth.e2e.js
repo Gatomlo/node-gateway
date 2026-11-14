@@ -94,6 +94,10 @@ async function call(m,u,body,{cookie,headers}={}){const r=await fetch(B+u,{metho
  r=await fetch(B+'/zz-test/whoami',{headers:{'x-forwarded-proto':'https'}}); assert(/frame-ancestors 'self'/.test(r.headers.get('content-security-policy')),'CSP de base'); eq(r.headers.get('x-content-type-options'),'nosniff'); assert(/max-age=/.test(r.headers.get('strict-transport-security')),'HSTS en https');
  r=await fetch(B+'/zz-test/whoami'); eq(r.headers.get('strict-transport-security'),null);
  r=await fetch(B+'/zz-autre/own-csp'); eq(r.headers.get('content-security-policy'),"default-src 'none'"); // la CSP de l'outil est conservee
+ // 11c. lien de compte sur la page d'accueil
+ r=await fetch(B+'/'); assert(/_gw\/login/.test(await r.text()),'lien Connexion pour un anonyme');
+ r=await call('POST','/_gw/auth/login',{login:'thomas',password:P1}); const adminHome=r.cookie; eq(r.status,200); // la session precedente est fermee (etape 11)
+ r=await fetch(B+'/',{headers:{Cookie:adminHome}}); const home=await r.text(); assert(/Mon compte/.test(home)&&/_gw\/admin/.test(home)&&!/_gw\/login/.test(home),'nom + Mon compte + Comptes pour un admin'); eq(r.headers.get('cache-control'),'private, no-store');
  // 12. pages
  for(const p of ['/_gw/login','/_gw/account','/_gw/admin','/_gw/gw.js']){const x=await fetch(B+p);eq(x.status,200);}
  assert(/script-src 'self'/.test((await fetch(B+'/_gw/login')).headers.get('content-security-policy')));
