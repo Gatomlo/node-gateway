@@ -10,7 +10,8 @@
     "postinstall": "node scripts/install-apps.js && node scripts/install-lock.js end"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "mysql2": "^3.24.6"
   },
   "engines": {
     "node": ">=18"

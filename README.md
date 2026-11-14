@@ -73,6 +73,32 @@ module.exports = app;
 
 Les outils qui n'exportent pas cette fonction sont montes exactement comme avant.
 
+## Sauvegarde automatique des bases SQLite (vers MySQL)
+
+La passerelle copie les bases SQLite des outils (`*.db`, `*.sqlite`, `*.sqlite3` sous `apps/<outil>/`, hors `node_modules`) dans MySQL, **chiffrees** (gzip + AES-256-GCM, cle hors base). Elle est **inactive tant que `BACKUP_KEY` n'est pas definie**. Necessite Node >= 22.5 (`node:sqlite`).
+
+Variables d'environnement (a definir dans le manager Infomaniak, jamais dans le depot) :
+
+| Variable | Role |
+|---|---|
+| `BACKUP_KEY` | 64 caracteres hexa : `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. **A sauvegarder ailleurs : sans elle, les sauvegardes sont illisibles.** |
+| `DB_HOST`, `DB_PORT` (3306), `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Acces MySQL |
+| `BACKUP_INTERVAL_HOURS` | Frequence (6 par defaut) ; une base inchangee n'est pas re-sauvegardee |
+| `BACKUP_PRUNE=0` | Desactive la retention (7 quotidiennes, 4 hebdo, 6 mensuelles) |
+
+Par outil, le bloc `"gateway": { "backup": ["data/app.sqlite"] }` du `package.json` remplace la detection automatique (`[]` = ne rien sauvegarder).
+
+Droits MySQL du compte dedie : `SELECT, INSERT, DELETE` (+ `CREATE` une fois pour creer les tables, sinon executer le SQL de `lib/backup-store.js`, constante `SCHEMA`). `DELETE` sert a la retention ; retirer ce droit et poser `BACKUP_PRUNE=0` si on prefere une table en ajout seul.
+
+Restauration **manuelle** (arreter la passerelle avant `--replace`) :
+
+```
+node scripts/restore-backup.js list [outil]
+node scripts/restore-backup.js restore <id> [--replace]
+```
+
+Sans `--replace`, la base est ecrite en `<fichier>.restored` sans rien ecraser. Une sauvegarde alteree est refusee (authentification GCM). La copie reste chez le meme hebergeur : faire de temps en temps un export `mysqldump` vers un autre support.
+
 ## En développement local (ce PC)
 
 Plutôt que de dupliquer le code de chaque outil dans `apps/`, on peut créer un lien

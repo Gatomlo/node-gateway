@@ -181,3 +181,6 @@ app.get('/', (req, res) => {
 httpServer.listen(PORT, () => {
   console.log(`Passerelle disponible sur http://localhost:${PORT}`);
 }).on('error', fatal(`Impossible d'ecouter sur le port ${PORT}`));
+
+// Sauvegarde automatique des SQLite des outils vers MySQL (inactive sans BACKUP_KEY, voir README).
+try { require('./lib/backup').start(APPS_DIR); } catch (err) { console.error('[backup] non demarre :', err.message); }
