@@ -23,7 +23,16 @@ function tileHtml(tool) {
   return `<span class="tile" style="--c:${esc(tool.color || colorFor(tool.name))}">${inner}</span>`;
 }
 
-function cardHtml(tool) {
+// Badge d'acces d'un outil pour la personne connectee (role) ; cadenas si connectee sans droit sur l'outil.
+function accessBadge(tool, user) {
+  if (!user) return '';
+  const role = user.isSuper ? 'admin' : (user.access && user.access[tool.id]);
+  return role
+    ? `<span class="tag acc" title="Votre accès : ${esc(role)}">✓ ${esc(role)}</span>`
+    : '<span class="tag lock" title="Aucun accès avec ce compte">🔒 pas d’accès</span>';
+}
+
+function cardHtml(tool, user) {
   const text = `${tool.name} ${tool.description} ${(tool.tags || []).join(' ')}`.toLowerCase();
   const tags = (tool.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('');
   return `
@@ -34,7 +43,7 @@ function cardHtml(tool) {
         </button>
       </div>
       <div><h3><a class="stretch" href="${esc(tool.route)}/">${esc(tool.name)}</a></h3>${tool.description ? `<p>${esc(tool.description)}</p>` : ''}</div>
-      <div class="foot"><span class="meta"><i class="dot"></i>en ligne${tags}</span>
+      <div class="foot"><span class="meta"><i class="dot"></i>en ligne${accessBadge(tool, user)}${tags}</span>
         <span class="go" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
     </article>`;
 }
@@ -134,13 +143,24 @@ const STYLE = `
   .empty { grid-column: 1 / -1; text-align: center; padding: 44px 16px; border: 1px dashed var(--line); border-radius: 20px; color: var(--muted); }
   .empty b { color: var(--fg); }
   .foot-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; color: var(--muted); font-size: 13px; }
-  .acct { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
-  .acct a { color: var(--accent); font-weight: 600; text-decoration: none; }
-  .acct a:hover { text-decoration: underline; }
+  .tag.acc { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+  .tag.lock { color: var(--muted); }
+  .top-bar { display: flex; justify-content: flex-end; }
+  .acct { position: relative; display: flex; align-items: center; gap: 10px; }
+  .acct .state { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 600 14px var(--f-body); cursor: default; }
+  .acct .state i { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .acct .state.on { cursor: pointer; }
+  .acct .state.on i { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .acct .btn { display: inline-block; padding: 9px 18px; border-radius: 99px; background: var(--accent); color: var(--accent-ink); font: 700 14px var(--f-body); text-decoration: none; }
+  .acct .btn:hover { filter: brightness(1.08); }
+  .acct .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 5; min-width: 190px; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); display: flex; flex-direction: column; }
+  .acct .menu[hidden] { display: none; }
+  .acct .menu a, .acct .menu button { text-align: left; padding: 9px 12px; border: 0; border-radius: 9px; background: none; color: var(--fg); font: 500 14px var(--f-body); text-decoration: none; cursor: pointer; }
+  .acct .menu a:hover, .acct .menu button:hover { background: var(--surface-2); }
   .theme { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 10px; padding: 6px 12px; font: 600 13px var(--f-body); cursor: pointer; }
   a:focus-visible, button:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-  @media (max-width: 520px) { .card { padding: 16px; } .search { max-width: none; } }
+  @media (max-width: 520px) { .card { padding: 16px; } .search { max-width: none; } .acct .state .who { display: none; } .acct .btn { padding: 8px 14px; } }
 `;
 
 // Applique le theme choisi avant le premier affichage (evite un flash clair/sombre).
@@ -232,6 +252,16 @@ const SCRIPT = `
     else { document.documentElement.setAttribute('data-theme', current); try { localStorage.setItem('gw_theme', current); } catch (e) {} }
     btn.textContent = labels[current];
   });
+  var ab = $('#acctBtn'), am = $('#acctMenu');
+  if (ab && am) {
+    ab.addEventListener('click', function (e) { e.stopPropagation(); am.hidden = !am.hidden; ab.setAttribute('aria-expanded', String(!am.hidden)); });
+    document.addEventListener('click', function () { am.hidden = true; ab.setAttribute('aria-expanded', 'false'); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { am.hidden = true; ab.focus(); } });
+    $('#logoutBtn').addEventListener('click', function () {
+      fetch('/_gw/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', credentials: 'same-origin' })
+        .then(function () { location.reload(); });
+    });
+  }
   var hr = new Date().getHours();
   $('#greet').textContent = hr < 5 || hr >= 18 ? 'Bonsoir' : 'Bonjour';
   $('#date').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -239,10 +269,15 @@ const SCRIPT = `
 })();
 `;
 
-// Liens de compte (page d'accueil) : connexion si anonyme ; sinon nom, mon compte et, pour l'administrateur, les comptes.
+// Etat de connexion (en-tete de l'accueil) : pastille + bouton "Se connecter", ou nom + menu (compte, comptes, deconnexion).
 function accountLinks(user) {
-  if (!user) return '<a href="_gw/login?next=/">Connexion</a>';
-  return `<span>${esc(user.name || user.login)}</span> · <a href="_gw/account">Mon compte</a>${user.isSuper ? ' · <a href="_gw/admin">Comptes</a>' : ''}`;
+  if (!user) return '<span class="state" role="status"><i></i><span class="who">Non connecté</span></span><a class="btn" href="_gw/login?next=/">Se connecter</a>';
+  const name = esc(user.name || user.login);
+  return `<button type="button" class="state on" id="acctBtn" aria-haspopup="true" aria-expanded="false" role="status"><i></i><span class="who">Connecté · ${name}</span><span aria-hidden="true">▾</span></button>
+    <div class="menu" id="acctMenu" hidden>
+      <a href="_gw/account">Mon compte</a>${user.isSuper ? '<a href="_gw/admin">Comptes</a>' : ''}
+      <button type="button" id="logoutBtn">Se déconnecter</button>
+    </div>`;
 }
 
 function renderHome(tools, user) {
@@ -250,7 +285,7 @@ function renderHome(tools, user) {
   // Donnees pour le script : "<" echappe pour qu'un nom ne puisse pas fermer la balise <script>.
   const data = JSON.stringify(list).replace(/</g, '\\u003c');
   const cards = list.length
-    ? list.map(cardHtml).join('')
+    ? list.map((t) => cardHtml(t, user)).join('')
     : '<div class="empty">Aucun outil monté pour le moment.<br>Déposez le dossier d\'un outil dans <b>apps/</b> puis redémarrez la passerelle.</div>';
   return `<!doctype html>
 <html lang="fr">
@@ -267,6 +302,7 @@ function renderHome(tools, user) {
 </head>
 <body>
 <div class="page">
+  <div class="top-bar"><nav class="acct" aria-label="Compte">${accountLinks(user)}</nav></div>
   <header>
     <div class="hello">
       <small id="date"></small>
@@ -288,7 +324,6 @@ function renderHome(tools, user) {
   </section>
   <div class="foot-bar">
     <span>${list.length} outil${list.length > 1 ? 's' : ''} sur cette passerelle</span>
-    <nav class="acct" aria-label="Compte">${accountLinks(user)}</nav>
     <button class="theme" id="themeBtn" type="button">Thème : système</button>
   </div>
 </div>

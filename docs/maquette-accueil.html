@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nos outils</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f3f1; --bg-glow: #efe4dc;
+    --surface: #ffffff; --surface-2: #faf7f5;
+    --border: #ebe3dd; --text: #231b17; --muted: #7a6d65;
+    --accent: #c2582b; --focus: #c2582b55;
+    --shadow: 0 1px 2px rgba(35,27,23,.04), 0 6px 20px rgba(35,27,23,.06);
+    --shadow-hover: 0 2px 4px rgba(35,27,23,.06), 0 14px 32px rgba(35,27,23,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15110f; --bg-glow: #2a1d16;
+      --surface: #1f1916; --surface-2: #261f1b;
+      --border: #352b26; --text: #f3ece7; --muted: #a8998f;
+      --accent: #f08a57; --focus: #f08a5766;
+      --shadow: 0 1px 2px rgba(0,0,0,.3);
+      --shadow-hover: 0 10px 30px rgba(0,0,0,.45);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 500px at 50% -120px, var(--bg-glow), transparent 70%), var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { max-width: 960px; margin: 0 auto; padding: 48px 16px 40px; }
+
+  /* En-tête */
+  header { text-align: center; margin-bottom: 32px; }
+  .logo {
+    width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 16px;
+    display: grid; place-items: center; color: #fff; font-size: 26px; font-weight: 800;
+    background: linear-gradient(135deg, #e0773f, #b2401d); box-shadow: var(--shadow);
+  }
+  h1 { font-size: clamp(24px, 4vw, 32px); margin: 0 0 6px; letter-spacing: -.02em; }
+  .subtitle { margin: 0; color: var(--muted); font-size: 15px; }
+
+  /* Recherche */
+  .search { display: block; position: relative; max-width: 420px; margin: 24px auto 0; }
+  .search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .search input {
+    width: 100%; padding: 12px 14px 12px 42px; font: inherit; font-size: 15px; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; outline: none;
+    box-shadow: var(--shadow);
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--focus); }
+
+  /* Sections */
+  section { margin-top: 32px; }
+  h2 {
+    font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin: 0 0 12px 4px;
+  }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+
+  /* Cartes */
+  .card {
+    --c: var(--accent);
+    position: relative; display: flex; gap: 14px; align-items: flex-start;
+    padding: 18px; border-radius: 16px; background: var(--surface);
+    border: 1px solid var(--border); box-shadow: var(--shadow);
+    color: inherit; text-decoration: none;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .card::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; border-radius: 16px 16px 0 0;
+    background: var(--c); opacity: 0; transition: opacity .15s ease;
+  }
+  a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); border-color: color-mix(in srgb, var(--c) 35%, var(--border)); }
+  a.card:hover::before { opacity: 1; }
+  a.card:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--focus); }
+  a.card:active { transform: scale(.985); }
+  .icon {
+    width: 48px; height: 48px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c);
+  }
+  .body { flex: 1; min-width: 0; }
+  .title { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16px; margin: 2px 0 4px; }
+  .desc { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+  .arrow { color: var(--muted); align-self: center; transition: transform .15s ease, color .15s ease; }
+  a.card:hover .arrow { transform: translateX(3px); color: var(--c); }
+
+  .badge {
+    font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--muted);
+  }
+  .badge.maint { background: #fff4e0; border-color: #f3d9a6; color: #8a5a00; }
+  @media (prefers-color-scheme: dark) { .badge.maint { background: #3a2a10; border-color: #5c4318; color: #f2c46d; } }
+  .card.disabled { opacity: .6; cursor: default; box-shadow: none; }
+
+  .empty { display: none; text-align: center; color: var(--muted); margin-top: 40px; }
+  footer { margin-top: 48px; text-align: center; font-size: 13px; color: var(--muted); }
+  footer a { color: inherit; }
+
+  @media (max-width: 480px) {
+    .shell { padding-top: 32px; }
+    .grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo" aria-hidden="true">P</div>
+    <h1>Bonjour 👋</h1>
+    <p class="subtitle">Choisissez un outil pour commencer.</p>
+    <label class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Rechercher un outil…" aria-label="Rechercher un outil" autocomplete="off">
+    </label>
+  </header>
+
+  <main>
+    <section data-section>
+      <h2>Foyer</h2>
+      <div class="grid">
+        <a class="card" href="#" style="--c:#7c5cd6" data-search="fée lezcomptes budget familial comptes dépenses">
+          <span class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12h2M3 10h18M7 6V4h10v2"/></svg></span>
+          <span class="body"><span class="title">Fée Lezcomptes</span><p class="desc">Le budget familial : dépenses, catégories et suivi mensuel.</p></span>
+          <span class="arrow">→</span>
+        </a>
+        <a class="card" href="#" style="--c:#2f9e6e" data-search="le cabas courses listes magasins menus">
+          <span class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span>
+          <span class="body"><span class="title">Le Cabas</span><p class="desc">Listes de courses partagées, prix par magasin et menus de la semaine.</p></span>
+          <span class="arrow">→</span>
+        </a>
+      </div>
+    </section>
+
+    <section data-section>
+      <h2>Bureau</h2>
+      <div class="grid">
+        <a class="card" href="#" style="--c:#2b7fc2" data-search="bibliothèque bureau livres prêts catalogue qr mylittlelibrary">
+          <span class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h13"/><path d="M9 7h6"/></svg></span>
+          <span class="body"><span class="title">Bibliothèque du bureau</span><p class="desc">Catalogue, prêts en cours et étiquettes QR.</p></span>
+          <span class="arrow">→</span>
+        </a>
+      </div>
+    </section>
+
+    <section data-section>
+      <h2>Loisirs</h2>
+      <div class="grid">
+        <a class="card" href="#" style="--c:#c2582b" data-search="enquêtes phoenix mystère jeu équipes classement">
+          <span class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="m20 20-5.6-5.6"/></svg></span>
+          <span class="body"><span class="title">Les Enquêtes du Phoenix</span><p class="desc">Sessions de jeu, suivi des équipes en direct et classement.</p></span>
+          <span class="arrow">→</span>
+        </a>
+        <a class="card" href="#" style="--c:#c23b6b" data-search="répétito théâtre répliques troupe">
+          <span class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v6a8 8 0 0 1-16 0z"/><path d="M9 10h.01M15 10h.01M9.5 14a3.5 3.5 0 0 0 5 0"/></svg></span>
+          <span class="body"><span class="title">Répétito <span class="badge maint">Maintenance</span></span><p class="desc">Apprendre ses répliques de théâtre en troupe.</p></span>
+          <span class="arrow">→</span>
+        </a>
+        <div class="card disabled" style="--c:#d19a1f" data-search="kdo cadeaux listes envies" aria-disabled="true">
+          <span class="icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18M12 8S10 3 7.5 4.5 9 8 12 8zm0 0s2-5 4.5-3.5S15 8 12 8z"/></svg></span>
+          <span class="body"><span class="title">Kdo <span class="badge">Bientôt</span></span><p class="desc">Listes d'envies et cadeaux entre amis.</p></span>
+        </div>
+      </div>
+    </section>
+
+    <p class="empty" id="empty">Aucun outil ne correspond à votre recherche.</p>
+  </main>
+
+  <footer>Ranch du Phoenix · <a href="#">Administration</a></footer>
+</div>
+
+<script>
+  // Maquette : filtrage instantané des cartes
+  const q = document.getElementById('q');
+  q.addEventListener('input', () => {
+    const term = q.value.trim().toLowerCase();
+    let any = false;
+    document.querySelectorAll('[data-section]').forEach((s) => {
+      let visible = 0;
+      s.querySelectorAll('.card').forEach((c) => {
+        const hit = !term || (c.dataset.search + ' ' + c.textContent).toLowerCase().includes(term);
+        c.style.display = hit ? '' : 'none';
+        if (hit) visible++;
+      });
+      s.style.display = visible ? '' : 'none';
+      if (visible) any = true;
+    });
+    document.getElementById('empty').style.display = any ? 'none' : 'block';
+  });
+</script>
+</body>
+</html>
